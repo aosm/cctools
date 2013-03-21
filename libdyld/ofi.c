@@ -3,8 +3,6 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
- * 
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
@@ -46,6 +44,7 @@
 #import "stuff/bool.h"
 #import "mach-o/dyld.h"
 #import "mach-o/getsect.h"
+#import "mach-o/dyld_priv.h"
 #import "stuff/ofile.h"
 #import "stuff/arch.h"
 #import "stuff/errors.h"
@@ -788,8 +787,64 @@ unsigned long *size) /* can be NULL */
 }
 
 /*
+ * NSFindSectionAndOffsetInObjectFileImage() takes the specified imageOffset
+ * into the specified ObjectFileImage and returns the segment/section name and
+ * offset into that section of that imageOffset.  Returns FALSE if the
+ * imageOffset is not in any section.  You can used the resulting sectionOffset
+ * to index into the data returned by NSGetSectionDataInObjectFileImage.
+ * 
+ * SPI: currently only used by ZeroLink to detect +load methods
+ */
+enum DYLD_BOOL 
+NSFindSectionAndOffsetInObjectFileImage(
+NSObjectFileImage objectFileImage, 
+unsigned long imageOffset,
+const char** segmentName, 	/* can be NULL */
+const char** sectionName, 	/* can be NULL */
+unsigned long* sectionOffset)	/* can be NULL */
+{
+    const struct ofile *ofile;
+    const struct load_command *lc;
+    const struct mach_header *mh;
+    const struct segment_command *sg;
+    const struct section *s;
+    unsigned long i, j;
+
+	ofile = (struct ofile *)objectFileImage;
+	mh = ofile->mh;
+	lc = ofile->load_commands;
+
+	for(i = 0; i < mh->ncmds; i++){
+	    switch(lc->cmd){
+	    case LC_SEGMENT:
+		sg = (struct segment_command *)lc;
+		s = (struct section *)((char *)sg +
+				      sizeof(struct segment_command));
+		for(j = 0; j < sg->nsects; j++){
+		    if((s->addr <= imageOffset) &&
+		       (imageOffset < (s->addr+s->size))) {
+			if(segmentName != NULL)
+			    *segmentName = s->segname;
+			if(sectionName != NULL)
+			    *sectionName = s->sectname;
+			if(sectionOffset != NULL)
+			    *sectionOffset = imageOffset - s->addr;
+			return(TRUE);
+		    }
+		    s++;
+		}
+	    }
+	    lc = (struct load_command *)(((char *)lc)+ lc->cmdsize);
+	}
+	return(FALSE);	
+}
+
+
+/*
  * NSHasModInitObjectFileImage() returns TRUE if the NSObjectFileImage has any
  * module initialization sections and FALSE it it does not.
+ *
+ * SPI: currently only used by ZeroLink to detect C++ initializers
  */
 enum bool
 NSHasModInitObjectFileImage(

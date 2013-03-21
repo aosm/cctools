@@ -3,8 +3,6 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
- * 
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
@@ -1009,7 +1007,7 @@ struct dyld_debug_module module
 				        FALSE, FALSE, FALSE);
 		    resolve_undefineds(FALSE, FALSE);
 		    relocate_modules_being_linked(FALSE);
-		    check_and_report_undefineds();
+		    check_and_report_undefineds(FALSE);
 		    call_registered_funcs_for_add_images();
 		    call_registered_funcs_for_linked_modules();
 		    call_image_init_routines(FALSE);

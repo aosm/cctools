@@ -1,3 +1,34 @@
+Changes for the 5.13 release (the cctools-492 release):
+- Added the #define NEXT_DEBUG_ADDRESS_TO_ASSIGN to <stuff/seg_addr_table.h>
+  so that seg_addr_table(1) can layout debug and profile libraries at a lower
+  address than the rest of the flat region.  Radar bug #3360593.
+
+Changes for the 5.13 release (the cctools-490 release):
+- Added the proto type for the new routine cpusubtype_execute() to the header
+  file <stuff/best_arch.c> for use by the dynamic linker.  Radar bug #3387962.
+
+Changes for the 5.13 release (the cctools-482 release):
+- Added the file <mach-o/dyld_priv.h> that contains the new
+  NSFindSectionAndOffsetInObjectFileImage() SPI.  Radar bug #3318440.
+- Updated the Makefile to install the new file <mach-o/dyld_priv.h> .
+  Radar bug #3318440.
+
+Changes for the 5.12 release (the cctools-477 release):
+- Changed <mach-o/kld.h> to make kld_load_basefile_from_memory() available for
+  both __DYNAMIC__ and __STATIC__  and added kld_set_link_options() as well as
+  the constants to use with it.  Radar bug #3270588.
+
+Changes for the 5.12 release (the cctools-468 release):
+- Added some comments to <mach-o/ppc/reloc.h> to describe the new use of the
+  previously unused value 3 for r_length to mean that the conditional branch was
+  predicted using the Y-bit and the sign of the displacement and opcode.
+  Radar bug #3223045.
+
+Changes for the 5.12 release (the cctools-467 release):
+- Added the PPC_RELOC_LO14_SECTDIFF relocation type to <mach-o/ppc/reloc.h>
+  to match the PPC_RELOC_LO14 relocation type for load and store double
+  instructions using a section difference expression.  Radar bug #3218027.
+
 Changes for the 5.12 release (the cctools-466 release):
 - Added the DYNAMIC_LOOKUP_ORDINAL to <mach-o/nlist.h> and reduced the value of
   MAX_LIBRARY_ORDINAL by one.  This is to allow dynamic flat namespace lookups

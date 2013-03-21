@@ -3,8 +3,6 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
- * 
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
@@ -2307,6 +2305,13 @@ printf("merging in coalesced symbol %s\n", merged_symbol->nlist.n_un.n_name);
 	    merged_symbol->definition_object = cur_obj;
 	    merged_symbol->defined_in_dylib = TRUE;
 	    merged_symbol->definition_library = dynamic_library;
+	    /*
+	     * If this shared library is being forced to be weak linked then
+	     * set N_WEAK_REF to make this symbol a weak reference.
+	     */
+	    if(dynamic_library->force_weak_dylib &&
+	       merged_symbol->referenced_in_non_dylib == TRUE)
+		merged_symbol->nlist.n_desc |= N_WEAK_REF;
 	    /*
 	     * If the merged symbol we are resolving is not a weak reference
 	     * and it is referenced from a non-dylib then set
@@ -4670,11 +4675,11 @@ output_local_symbols(void)
 		   cur_obj->symtab->strsize);
 	    output_symtab_info.output_local_strsize += cur_obj->symtab->strsize;
 	}
-#ifndef RLD
 	if(host_byte_sex != target_byte_sex){
 	    nlist = (struct nlist *)(output_addr + flush_symbol_offset);
 	    swap_nlist(nlist, output_nsyms, target_byte_sex);
 	}
+#ifndef RLD
 	output_flush(flush_symbol_offset, output_nsyms * sizeof(struct nlist));
 	output_flush(flush_string_offset, output_symtab_info.
 					  output_local_strsize -

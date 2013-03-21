@@ -3,8 +3,6 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
- * 
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
@@ -528,7 +526,7 @@ struct sub_library_command {
 };
 
 /*
- * A program (filetype == MH_EXECUTE) or bundle (filetype == MH_BUNDLE) that is
+ * A program (filetype == MH_EXECUTE) that is
  * prebound to its dynamic libraries has one of these for each library that
  * the static linker used in prebinding.  It contains a bit vector for the
  * modules in the library.  The bits indicate which modules are bound (1) and

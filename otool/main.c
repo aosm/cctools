@@ -3,8 +3,6 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
- * 
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
@@ -2086,3 +2084,22 @@ hw_sqrt(double x)
 {
 	return(0.0);
 }
+
+/*
+ * More stubs to avoid linking in libm.  This works as along as we don't use
+ * long doubles.
+ */
+#ifdef __ppc__
+long
+__fpclassifyd(double x) /* ppc doesn't support long doubles */
+{
+	return(0);
+}
+#endif /* __ppc__ */
+#ifdef __i386__
+long
+__fpclassify(long double x)
+{
+	return(0);
+}
+#endif /* __i386__ */

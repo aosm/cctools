@@ -3,8 +3,6 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
- * 
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
@@ -125,6 +123,7 @@ char *dyld_image_suffix = NULL;
 char *dyld_insert_libraries = NULL;
 
 enum bool dyld_print_libraries = FALSE;
+static enum bool dyld_print_libraries_post_launch = FALSE;
 enum bool dyld_trace = FALSE;
 enum bool dyld_mem_protect = FALSE;
 enum bool dyld_ebadexec_only = FALSE;
@@ -371,7 +370,7 @@ char **envp)
 	    /*
 	     * With the undefined list set up link in the needed modules.
 	     */
-	    link_in_need_modules(FALSE, FALSE);
+	    link_in_need_modules(FALSE, FALSE, NULL);
 	}
 	else{
 	    if(dyld_prebind_debug != 0){
@@ -399,6 +398,9 @@ char **envp)
 		"program not started)", argv[0]);
 	    link_edit_error(DYLD_FILE_ACCESS, EBADEXEC, argv[0]);
 	}
+	
+	if(dyld_print_libraries_post_launch == TRUE)
+	    dyld_print_libraries = TRUE;
 
 	/* release lock for dyld data structures */
 	release_lock();
@@ -544,6 +546,10 @@ char *envp[])
 		else if(strncmp(*p, "DYLD_PRINT_LIBRARIES=",
 		                sizeof("DYLD_PRINT_LIBRARIES=") - 1) == 0){
 		    dyld_print_libraries = TRUE;
+		}
+		else if(strncmp(*p, "DYLD_PRINT_LIBRARIES_POST_LAUNCH=",
+			sizeof("DYLD_PRINT_LIBRARIES_POST_LAUNCH=") - 1) == 0){
+		    dyld_print_libraries_post_launch = TRUE;
 		}
 		else if(strncmp(*p, "DYLD_TRACE=",
 		                sizeof("DYLD_TRACE=") - 1) == 0){
@@ -776,3 +782,22 @@ hw_sqrt(double x)
 {
 	return(0.0);
 }
+
+/*
+ * More stubs to avoid linking in libm.  This works as along as we don't use
+ * long doubles.
+ */
+#ifdef __ppc__
+long
+__fpclassifyd(double x) /* ppc doesn't support long doubles */
+{
+	return(0);
+}
+#endif /* __ppc__ */
+#ifdef __i386__
+long
+__fpclassify(long double x)
+{
+	return(0);
+}
+#endif /* __i386__ */

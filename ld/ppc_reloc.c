@@ -3,8 +3,6 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
- * 
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
@@ -243,6 +241,7 @@ struct section_map *section_map)
 	    else if(r_type == PPC_RELOC_SECTDIFF ||
 		    r_type == PPC_RELOC_HI16_SECTDIFF ||
 		    r_type == PPC_RELOC_LO16_SECTDIFF ||
+		    r_type == PPC_RELOC_LO14_SECTDIFF ||
 		    r_type == PPC_RELOC_HA16_SECTDIFF){
 		if(r_scattered != 1){
 		    error_with_cur_obj("relocation entry (%lu) in section "
@@ -513,6 +512,7 @@ struct section_map *section_map)
 		    if(r_type == PPC_RELOC_SECTDIFF ||
 		       r_type == PPC_RELOC_HI16_SECTDIFF ||
 		       r_type == PPC_RELOC_LO16_SECTDIFF ||
+		       r_type == PPC_RELOC_LO14_SECTDIFF ||
 		       r_type == PPC_RELOC_HA16_SECTDIFF){
 			pair_local_map =
 			    &(cur_obj->section_maps[pair_r_symbolnum - 1]);
@@ -524,6 +524,7 @@ struct section_map *section_map)
 			if(r_type == PPC_RELOC_SECTDIFF ||
 			   r_type == PPC_RELOC_HI16_SECTDIFF ||
 			   r_type == PPC_RELOC_LO16_SECTDIFF ||
+			   r_type == PPC_RELOC_LO14_SECTDIFF ||
 			   r_type == PPC_RELOC_HA16_SECTDIFF){
 			    value = - local_map->s->addr
 				    + (local_map->output_section->s.addr +
@@ -610,6 +611,7 @@ struct section_map *section_map)
 					    other_half;
 				break;
 			    case PPC_RELOC_LO14:
+			    case PPC_RELOC_LO14_SECTDIFF:
 				value = (other_half << 16) |
 					(instruction & 0xfffc);
 				break;
@@ -635,6 +637,7 @@ struct section_map *section_map)
 			if(r_type == PPC_RELOC_SECTDIFF ||
 			   r_type == PPC_RELOC_HI16_SECTDIFF ||
 			   r_type == PPC_RELOC_LO16_SECTDIFF ||
+			   r_type == PPC_RELOC_LO14_SECTDIFF ||
 			   r_type == PPC_RELOC_HA16_SECTDIFF){
 			    /*
 			     * For PPC_RELOC_SECTDIFF's the item to be
@@ -789,6 +792,7 @@ struct section_map *section_map)
 						  ((value >> 16) & 0xffff);
 				break;
 			    case PPC_RELOC_LO14:
+			    case PPC_RELOC_LO14_SECTDIFF:
 				if((value & 0x3) != 0)
 				    error_with_cur_obj("relocation error "
 					"for relocation entry %lu in section "
@@ -818,6 +822,19 @@ struct section_map *section_map)
 					section_map->s->sectname);
 				instruction = (instruction & 0xffff0003) |
 					      (value & 0xfffc);
+				/*
+				 * If this is a predicted branch conditional
+				 * (r_length is 3) where the branch condition
+				 * is not branch always and the sign of the
+				 * displacement is different after relocation
+				 * then flip the Y-bit to preserve the sense of
+				 * the branch prediction. 
+				 */
+				if(r_length == 3 &&
+				   (instruction & 0xfc000000) == 0x40000000 &&
+				   (instruction & 0x03e00000) != 0x02800000 &&
+				   (instruction & 0x00008000) != br14_disp_sign)
+				    instruction ^= (1 << 21);
 				break;
 			    case PPC_RELOC_BR24:
 				if((value & 0x3) != 0)
@@ -971,6 +988,7 @@ struct section_map *section_map)
 		    other_half = immediate & 0xffff;
 		    break;
 		case PPC_RELOC_LO14:
+		case PPC_RELOC_LO14_SECTDIFF:
 		    immediate = (other_half << 16) |
 				(instruction & 0xfffc);
 		    immediate += value;
@@ -1002,6 +1020,20 @@ struct section_map *section_map)
 			    section_map->s->sectname);
 		    instruction = (instruction & 0xffff0003) |
 				  (immediate & 0xfffc);
+		    /*
+		     * If this is a predicted branch conditional
+		     * (r_length is 3) where the branch condition
+		     * is not branch always and the sign of the
+		     * displacement is different after relocation
+		     * then flip the Y-bit to preserve the sense of
+		     * the branch prediction. 
+		     */
+		    if(r_length == 3 &&
+		       (instruction & 0xfc000000) == 0x40000000 &&
+		       (instruction & 0x03e00000) != 0x02800000 &&
+		       (instruction & 0x00008000) != br14_disp_sign)
+			instruction ^= (1 << 21);
+		    break;
 		    break;
 		case PPC_RELOC_BR24:
 		    immediate = instruction & 0x03fffffc;
@@ -1250,6 +1282,7 @@ update_reloc:
 			if(r_type == PPC_RELOC_SECTDIFF ||
 			   r_type == PPC_RELOC_HI16_SECTDIFF ||
 			   r_type == PPC_RELOC_LO16_SECTDIFF ||
+			   r_type == PPC_RELOC_LO14_SECTDIFF ||
 			   r_type == PPC_RELOC_HA16_SECTDIFF){
 			    /*
 			     * For PPC_RELOC_SECTDIFF relocation entries (which
@@ -1268,6 +1301,7 @@ update_reloc:
 					pair_local_map->output_section->s.addr);
 			    if(r_type == PPC_RELOC_HI16_SECTDIFF ||
 			       r_type == PPC_RELOC_LO16_SECTDIFF ||
+			       r_type == PPC_RELOC_LO14_SECTDIFF ||
 			       r_type == PPC_RELOC_HA16_SECTDIFF)
 				spair_reloc->r_address = other_half;
 			}

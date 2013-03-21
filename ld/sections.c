@@ -3,8 +3,6 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
- * 
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
@@ -325,8 +323,15 @@ merge_sections(void)
 			error_with_cur_obj("literal section (%.16s,%.16s) "
 		    		       "not allowed in I860 cputype objects",
 				       ms->s.segname, ms->s.sectname);
-		if(s->align > ms->s.align)
-		    ms->s.align = s->align;
+#ifdef KLD
+		/*
+		 * For KLD the section's alignment from the base file is NOT
+		 * picked up.
+		 */
+		if(cur_obj != base_obj)
+#endif /* KLD */
+		    if(s->align > ms->s.align)
+			ms->s.align = s->align;
 		if(dynamic != TRUE)
 		    ms->s.flags |= (ms->s.flags & SECTION_ATTRIBUTES);
 		break;
@@ -4357,7 +4362,8 @@ reset_merged_sections(void)
 /*
  * zero_merged_sections_sizes() is called from rld_load() to zero the size field
  * in the merged sections so the sizes can be accumulated and free the literal
- * data for any literal sections.
+ * data for any literal sections.  Also the alignment of the existing sections
+ * is reset to zero.
  */
 __private_extern__
 void
@@ -4373,6 +4379,7 @@ zero_merged_sections_sizes(void)
 	    while(*q){
 		ms = *q;
 		ms->s.size = 0;
+		ms->s.align = 0;
 		if(ms->literal_data != NULL){
 		    if(ms->literal_free != NULL){
 			(*ms->literal_free)(ms->literal_data, ms);
@@ -4384,6 +4391,7 @@ zero_merged_sections_sizes(void)
 	    while(*q){
 		ms = *q;
 		ms->s.size = 0;
+		ms->s.align = 0;
 		q = &(ms->next);
 	    }
 	    p = &(msg->next);

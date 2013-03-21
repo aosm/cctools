@@ -3,8 +3,6 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
- * 
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
@@ -178,6 +176,12 @@ __private_extern__ struct symbol_list *save_symbols;
 __private_extern__ unsigned long nsave_symbols;
 __private_extern__ struct symbol_list *remove_symbols;
 __private_extern__ unsigned long nremove_symbols;
+
+/*
+ * -executable_path option's argument, executable_path is used to replace
+ * "@executable_path for dependent libraries.
+ */
+__private_extern__ char *executable_path;
 #endif /* RLD */
 
 /* The list of symbols to be traced */

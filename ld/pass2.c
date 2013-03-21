@@ -3,8 +3,6 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
- * 
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
@@ -1103,8 +1101,9 @@ output_headers(void)
 			    some_non_weak_refs = TRUE;
 		    }
 		}
-		if(some_symbols_referenced == TRUE &&
-		   some_non_weak_refs == FALSE){
+		if((some_symbols_referenced == TRUE &&
+		    some_non_weak_refs == FALSE) ||
+		    mdl->dynamic_library->force_weak_dylib == TRUE){
 		    if(macosx_deployment_target >=
 		       MACOSX_DEPLOYMENT_TARGET_10_2){
 			dl->cmd = LC_LOAD_WEAK_DYLIB;
@@ -1118,8 +1117,9 @@ output_headers(void)
 			dl->cmd = LC_LOAD_DYLIB;
 		    }
 		}
-		else
+		else{
 		    dl->cmd = LC_LOAD_DYLIB;
+		}
 	    }
 	    header_offset += mdl->dl->cmdsize;
 	    mdl = mdl->next;

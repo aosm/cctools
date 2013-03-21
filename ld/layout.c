@@ -3,8 +3,6 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
- * 
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
@@ -988,6 +986,16 @@ layout_segments(void)
 				     (dp->pbdylib->cmdsize -
 				      sizeof(struct prebound_dylib_command));
 			}
+			/*
+			 * Since we are building this executable prebound we
+			 * want to have some header padding in case their are
+			 * more indirectly referenced dylibs that will need to
+			 * be added when redoing the prebinding.  We have found
+			 * that in the 10.2 release that 3 times the size of
+			 * the initial LC_PREBOUND_DYLIB commands seems to work
+			 * for most but not all things.
+			 */
+			headerpad += dp->pbdylib->cmdsize * 3;
 		    }
 		}
 	    }
@@ -1307,51 +1315,54 @@ layout_segments(void)
 
 #ifdef RLD
 	/*
-	 * For rld() the output format is MH_OBJECT and only the contents of the
-	 * segment (the entire vmsize not just the filesize) without headers is
-	 * allocated and the address the segment is linked to is the address of
-	 * this memory.
+	 * For rld() the output format is MH_OBJECT and the contents of the
+	 * first segment (the entire vmsize not just the filesize), if it exists,
+	 * plus headers are allocated and the address the segment is linked to 
+	 * is the address of this memory.
 	 */
 	output_size = 0;
-	if(first_msg != NULL){
 #ifndef SA_RLD
-	    kern_return_t r;
+	kern_return_t r;
 #endif
-	    unsigned long allocate_size;
+	unsigned long allocate_size;
 
-	    headers_size = round(headers_size, max_align);
-	    output_size = headers_size + first_msg->sg.vmsize;
-	    allocate_size = output_size;
-	    if(strip_level != STRIP_ALL)
-		allocate_size += output_symtab_info.symtab_command.nsyms *
-				 sizeof(struct nlist) +
-				 output_symtab_info.symtab_command.strsize;
+	headers_size = round(headers_size, max_align);
+	output_size = headers_size;
+	if(first_msg != NULL)
+	    output_size += first_msg->sg.vmsize;
+	allocate_size = output_size;
+	if(strip_level != STRIP_ALL)
+	    allocate_size += output_symtab_info.symtab_command.nsyms *
+				sizeof(struct nlist) +
+				output_symtab_info.symtab_command.strsize;
 
 #ifdef SA_RLD
-	    if(allocate_size > sa_rld_output_size)
-		fatal("not enough memory for output of size %lu (memory "
-		      "available %lu)", allocate_size, sa_rld_output_size);
-	    output_addr = sa_rld_output_addr;
+	if(allocate_size > sa_rld_output_size)
+	    fatal("not enough memory for output of size %lu (memory "
+		    "available %lu)", allocate_size, sa_rld_output_size);
+	output_addr = sa_rld_output_addr;
 #else /* !defined(SA_RLD) */
-	    if((r = vm_allocate(mach_task_self(), (vm_address_t *)&output_addr,
-				allocate_size, TRUE)) != KERN_SUCCESS)
-		mach_fatal(r, "can't vm_allocate() memory for output of size "
-			   "%lu", allocate_size);
-	    /*
-	     * The default initial protection for vm_allocate()'ed memory
-	     * may not include VM_PROT_EXECUTE so we need to raise the
-	     * the protection to VM_PROT_ALL which include this.
-	     */
-	    if((r = vm_protect(mach_task_self(), (vm_address_t)output_addr,
-		allocate_size, FALSE, VM_PROT_ALL)) != KERN_SUCCESS)
-		mach_fatal(r, "can't set vm_protection on memory for output");
+	if((r = vm_allocate(mach_task_self(), (vm_address_t *)&output_addr,
+			    allocate_size, TRUE)) != KERN_SUCCESS)
+	    mach_fatal(r, "can't vm_allocate() memory for output of size "
+			"%lu", allocate_size);
+	/*
+	    * The default initial protection for vm_allocate()'ed memory
+	    * may not include VM_PROT_EXECUTE so we need to raise the
+	    * the protection to VM_PROT_ALL which include this.
+	    */
+	if((r = vm_protect(mach_task_self(), (vm_address_t)output_addr,
+	    allocate_size, FALSE, VM_PROT_ALL)) != KERN_SUCCESS)
+	    mach_fatal(r, "can't set vm_protection on memory for output");
 #endif /* defined(SA_RLD) */
 #ifdef RLD_VM_ALLOC_DEBUG
-	    print("rld() vm_allocate: addr = 0x%0x size = 0x%x\n",
-		  (unsigned int)output_addr, (unsigned int)allocate_size);
+	print("rld() vm_allocate: addr = 0x%0x size = 0x%x\n",
+		(unsigned int)output_addr, (unsigned int)allocate_size);
 #endif /* RLD_VM_ALLOC_DEBUG */
-	    sets[cur_set].output_addr = output_addr;
-	    sets[cur_set].output_size = output_size;
+	sets[cur_set].output_addr = output_addr;
+	sets[cur_set].output_size = output_size;
+
+	if(first_msg != NULL){
 	    if(address_func != NULL){
 	        if(RLD_DEBUG_OUTPUT_FILENAME_flag)
 		    first_msg->sg.vmaddr =

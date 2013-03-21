@@ -3,8 +3,6 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
- * 
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
@@ -406,14 +404,28 @@ unsigned long nfat_archs)
 	    /*
 	     * An exact match as not found.  So for all the PowerPC subtypes
 	     * pick the subtype from the following order starting from a subtype
-	     * that will work (contains altivec if needed):
+	     * that will work (contains 64-bit instructions or altivec if
+	     * needed):
 	     *	970, 7450, 7400, 750, 604e, 604, 603ev, 603e, 603, ALL
 	     * Note the 601 is NOT in the list above.  It is only picked via
-	     * an exact match.  For an unknown subtype pick obly the ALL type if
+	     * an exact match.  For an unknown subtype pick only the ALL type if
 	     * it exists.
 	     */
 	    switch(cpusubtype){
+	    case CPU_SUBTYPE_POWERPC_ALL:
+		/*
+		 * The CPU_SUBTYPE_POWERPC_ALL is only used by the development
+		 * environment tools when building a generic ALL type binary.
+		 * In the case of a non-exact match we pick the most current
+		 * processor.
+		 */
 	    case CPU_SUBTYPE_POWERPC_970:
+		for(i = 0; i < nfat_archs; i++){
+		    if(fat_archs[i].cputype != cputype)
+			continue;
+		    if(fat_archs[i].cpusubtype == CPU_SUBTYPE_POWERPC_970)
+			return(fat_archs + i);
+		}
 	    case CPU_SUBTYPE_POWERPC_7450:
 	    case CPU_SUBTYPE_POWERPC_7400:
 		for(i = 0; i < nfat_archs; i++){

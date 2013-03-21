@@ -3,8 +3,6 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
- * 
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
@@ -290,7 +288,8 @@ static enum bool map_library_image(
     dev_t dev,
     ino_t ino,
     struct image **image_pointer,
-    enum bool match_filename_by_installname);
+    enum bool match_filename_by_installname,
+    enum bool reference_from_dylib);
 /*
  * In the rare case that some library filename is to be matched by install name
  * then some_libraries_match_filename_by_installname is set to TRUE and then
@@ -304,7 +303,8 @@ static enum bool is_library_loaded_by_matching_installname(
 static enum bool validate_library(
     char *dylib_name,
     struct dylib_command *dl,
-    struct library_image *li);
+    struct library_image *li,
+    enum bool reference_from_dylib);
 static enum bool set_prebound_state(
     struct prebound_dylib_command *pbdylib);
 
@@ -744,7 +744,7 @@ unsigned long *entry_point)
 		passed_dylib_name = allocate(strlen(dylib_name) + 1);
 		strcpy(passed_dylib_name, dylib_name);
 		(void)load_library_image(NULL, passed_dylib_name, FALSE, FALSE,
-					 NULL);
+					 NULL, NULL, FALSE);
 		if(p == NULL){
 		    break;
 		}
@@ -971,7 +971,9 @@ struct dylib_command *dl, /* allow NULL for NSAddLibrary() to use this */
 char *passed_dylib_name,
 enum bool force_searching,
 enum bool match_filename_by_installname,
-struct image **image_pointer)
+struct image **image_pointer,
+enum bool *already_loaded,
+enum bool reference_from_dylib)
 {
     char *dylib_name, *new_dylib_name, *constructed_name;
     int fd, errnum, save_errno;
@@ -990,7 +992,8 @@ struct image **image_pointer)
 	    dylib_name = (char *)dl + dl->dylib.name.offset;
 	else
 	    dylib_name = passed_dylib_name;
-        
+        if(already_loaded != NULL)
+	    *already_loaded = FALSE;
         DYLD_TRACE_IMAGES_NAMED_START(DYLD_TRACE_load_library_image,dylib_name);
 
 	/*
@@ -1003,6 +1006,8 @@ struct image **image_pointer)
 	    if(is_library_loaded_by_matching_installname(dylib_name, dl,
 		image_pointer) == TRUE){
 		DYLD_TRACE_IMAGES_END(DYLD_TRACE_load_library_image);
+		if(already_loaded != NULL)
+		    *already_loaded = TRUE;
 		return(TRUE);
 	    }
 	}
@@ -1066,7 +1071,8 @@ struct image **image_pointer)
 	/*
 	 * If the library is already loaded just return.
 	 */
-	if(is_library_loaded_by_name(dylib_name, dl, image_pointer) == TRUE){
+	if(is_library_loaded_by_name(dylib_name, dl, image_pointer,
+				     reference_from_dylib) == TRUE){
             DYLD_TRACE_IMAGES_END(DYLD_TRACE_load_library_image);
 	    if(passed_dylib_name != NULL)
 		free(passed_dylib_name);
@@ -1074,6 +1080,8 @@ struct image **image_pointer)
 		free(new_dylib_name);
 	    if(constructed_name != NULL)
 		free(constructed_name);
+	    if(already_loaded != NULL)
+		*already_loaded = TRUE;
 	    return(TRUE);
 	}
 
@@ -1204,8 +1212,8 @@ struct image **image_pointer)
 	/*
 	 * If the library is already loaded just return.
 	 */
-	if(is_library_loaded_by_stat(dylib_name, dl, &stat_buf, image_pointer)
-	   == TRUE){
+	if(is_library_loaded_by_stat(dylib_name, dl, &stat_buf, image_pointer,
+				     reference_from_dylib) == TRUE){
 	    close(fd);
             DYLD_TRACE_IMAGES_END(DYLD_TRACE_load_library_image);
 	    if(passed_dylib_name != NULL)
@@ -1214,6 +1222,8 @@ struct image **image_pointer)
 		free(new_dylib_name);
 	    if(constructed_name != NULL)
 		free(constructed_name);
+	    if(already_loaded != NULL)
+		*already_loaded = TRUE;
 	    return(TRUE);
 	}
 	/*
@@ -1313,7 +1323,8 @@ struct image **image_pointer)
 				     file_size, best_fat_arch->offset,
 				     best_fat_arch->size, stat_buf.st_dev,
 				     stat_buf.st_ino, image_pointer,
-				     match_filename_by_installname);
+				     match_filename_by_installname,
+				     reference_from_dylib);
 	    if(return_value == FALSE)
 		goto load_library_image_cleanup3;
             DYLD_TRACE_IMAGES_END(DYLD_TRACE_load_library_image);
@@ -1347,7 +1358,8 @@ struct image **image_pointer)
 	    return_value = map_library_image(dl, dylib_name, fd, file_addr,
 				     file_size, 0, file_size, stat_buf.st_dev,
 				     stat_buf.st_ino, image_pointer,
-				     match_filename_by_installname);
+				     match_filename_by_installname,
+				     reference_from_dylib);
 	    if(return_value == FALSE)
 		goto load_library_image_cleanup3;
 	    DYLD_TRACE_IMAGES_END(DYLD_TRACE_load_library_image);
@@ -1714,7 +1726,8 @@ unsigned long library_size,
 dev_t dev,
 ino_t ino,
 struct image **image_pointer,
-enum bool match_filename_by_installname)
+enum bool match_filename_by_installname,
+enum bool reference_from_dylib)
 {
     struct mach_header *mh;
     int errnum;
@@ -1974,7 +1987,8 @@ enum bool match_filename_by_installname)
 		    prebinding = FALSE;
 		}
 	    }
-	    all_twolevel_modules_prebound = FALSE;
+	    if(reference_from_dylib == TRUE)
+		all_twolevel_modules_prebound = FALSE;
 	}
 
 	/*
@@ -2241,7 +2255,7 @@ enum bool reset_lazy_references)
 	 */
 	if(object_image->image.private == FALSE){
 	    unlink_object_module(object_image, reset_lazy_references);
-	    check_and_report_undefineds();
+	    check_and_report_undefineds(FALSE);
 	}
 
 	/*
@@ -3595,7 +3609,8 @@ struct image *image)
 		else
 		    image_pointer = NULL;
 		if(load_library_image(dl_load, NULL, FALSE, FALSE,
-				      image_pointer) == FALSE &&
+				      image_pointer, NULL,
+				      mh->filetype == MH_DYLIB) == FALSE &&
 		   dl_load->cmd != LC_LOAD_WEAK_DYLIB &&
 		   return_on_error == TRUE){
 		    unload_remove_on_error_libraries();
@@ -3751,6 +3766,8 @@ struct library_image *library_image)
 	 */
 	if(library_image->image.umbrella_name != NULL){
 	    for(i = 0; i < library_image->image.ndependent_images; i++){
+		if(deps[i] == &(some_weak_library_image.image))
+		    continue;
 		mh = deps[i]->mh;
 		load_commands = (struct load_command *)((char *)(mh) +
 						    sizeof(struct mach_header));
@@ -4434,8 +4451,8 @@ unsigned long *high_addr)
 	    link_edit_error(DYLD_FILE_FORMAT, EBADARCH, name);
 	    return(FALSE);
 	}
-	if(cpusubtype_combine(host_basic_info.cpu_type,
-			  host_basic_info.cpu_subtype, mh->cpusubtype) == -1){
+	if(cpusubtype_execute(host_basic_info.cpu_type,
+		      host_basic_info.cpu_subtype, mh->cpusubtype) == FALSE){
 	    error("bad CPU subtype in %s: %s", image_type, name);
 	    link_edit_error(DYLD_FILE_FORMAT, EBADARCH, name);
 	    return(FALSE);
@@ -5227,13 +5244,17 @@ unsigned long n)
  * validate_library() reports an error and returns FALSE if the loaded
  * library's compatibility_version is less than the one the load command
  * requires, or the timestaps do not match. Otherwise, returns TRUE.
+ * This routine will also set all_twolevel_modules_prebound to FALSE if
+ * dl is not NULL and the time stamps don't match and reference_from_dylib
+ * is TRUE.
  */
 static
 enum bool
 validate_library(
 char *dylib_name,
 struct dylib_command *dl,
-struct library_image *li)
+struct library_image *li,
+enum bool reference_from_dylib)
 {
 	if(dl != NULL &&
 	   dl->dylib.compatibility_version >
@@ -5266,7 +5287,7 @@ struct library_image *li)
 	    }
 	    if(launched == FALSE)
 		prebinding = FALSE;
-	    if(dl != NULL)
+	    if(dl != NULL && reference_from_dylib == TRUE)
 		all_twolevel_modules_prebound = FALSE;
 	}
 	return(TRUE);
@@ -5277,13 +5298,15 @@ struct library_image *li)
  * Also it validates the compatibility version and timestamp of the library
  * against the load command.  For two-level images that depend on this library,
  * image_pointer is the address of a pointer to an image struct to be set (if
- * not NULL) after if this image is loaded.
+ * not NULL) after if this image is loaded.  reference_from_dylib is TRUE when
+ * this library is referenced by another dylib and FALSE otherwise.
  */
 enum bool
 is_library_loaded_by_name(
 char *dylib_name,
 struct dylib_command *dl,
-struct image **image_pointer)
+struct image **image_pointer,
+enum bool reference_from_dylib)
 {
     unsigned long i;
     struct library_images *p;
@@ -5300,8 +5323,8 @@ struct image **image_pointer)
 	for(p = &library_images; p != NULL; p = p->next_images){
 	    for(i = 0; i < p->nimages; i++){
 		if(strcmp(dylib_name, p->images[i].image.name) == 0){
-		    if(validate_library(dylib_name, dl, &(p->images[i])) ==
-		       TRUE){
+		    if(validate_library(dylib_name, dl, &(p->images[i]),
+		 			reference_from_dylib) == TRUE){
 			if(image_pointer != NULL)
 			    *image_pointer = &(p->images[i].image);
 			return(TRUE);
@@ -5317,14 +5340,16 @@ struct image **image_pointer)
  * Also it validates the compatibility version and timestamp of the library
  * against the load command.  For two-level images that depend on this library,
  * image_pointer is the address of a pointer to an image struct to be set (if
- * not NULL) after if this image is loaded.
+ * not NULL) after if this image is loaded.  reference_from_dylib is TRUE when
+ * this library is referenced by another dylib and FALSE otherwise.
  */
 enum bool
 is_library_loaded_by_stat(
 char *dylib_name,
 struct dylib_command *dl,
 struct stat *stat_buf,
-struct image **image_pointer)
+struct image **image_pointer,
+enum bool reference_from_dylib)
 {
     unsigned long i;
     struct library_images *p;
@@ -5337,8 +5362,8 @@ struct image **image_pointer)
 	    for(i = 0; i < p->nimages; i++){
 		if(stat_buf->st_dev == p->images[i].dev &&
 		   stat_buf->st_ino == p->images[i].ino){
-		    if(validate_library(dylib_name, dl, &(p->images[i])) ==
-		       TRUE){
+		    if(validate_library(dylib_name, dl, &(p->images[i]),
+					reference_from_dylib) == TRUE){
 			if(image_pointer != NULL)
 			    *image_pointer = &(p->images[i].image);
 			return(TRUE);
@@ -6614,4 +6639,20 @@ void)
 leave_notify_prebinding_agent:
 
 	DYLD_TRACE_IMAGES_END(DYLD_TRACE_notify_prebinding_agent);
+}
+
+/*
+ * We have our own gettimeofday() to avoid needing the notify API which is used
+ * by the code in libc.a for gettimeofday() but not in libc.a .
+ */
+#define __APPLE_API_PRIVATE
+#include <sys/syscall.h>
+int
+gettimeofday(
+struct timeval *tp,
+struct timezone *tzp)
+{
+	if(syscall(SYS_gettimeofday, tp, tzp) < 0)
+	    return(-1);
+	return(0);
 }
