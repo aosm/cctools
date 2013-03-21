@@ -26,18 +26,14 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 #include <stdint.h>
-#include "stuff/round.h"
+
+#if defined(__MWERKS__) && !defined(__private_extern__)
+#define __private_extern__ __declspec(private_extern)
+#endif
+
 /*
- * round() rounds v to a multiple of r.
+ * rnd() rounds v to a multiple of r.
  */
-__private_extern__
-uint32_t
-round(
-uint32_t v,
-uint32_t r)
-{
-	r--;
-	v += r;
-	v &= ~(int32_t)r;
-	return(v);
-}
+__private_extern__ uint64_t rnd(
+    uint64_t v,
+    uint64_t r);
